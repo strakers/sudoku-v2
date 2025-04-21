@@ -1,0 +1,179 @@
+:root {
+    --size: 1;
+    --matrix-x: 1;
+    --matrix-y: 1;
+    --gap: 3px;
+    --bg-default: hsl(from gold h s 70%);
+    --bg-active: hsl(from green h s 70%);
+    --bg-fixed: hsl(from #000 h s 70%);
+    --bg-error: hsl(from #cc0000 h s 70%);
+    font-family: "Noto Sans JP", sans-serif;
+}
+
+.container {
+    height: 100vh;
+    place-content: center;
+}
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(var(--matrix-x), 1fr);
+    grid-template-rows: repeat(var(--matrix-y), 1fr);
+    gap: var(--gap);
+
+    font-size: max(calc(var(--size) / 2), 16px);
+
+    width: calc(var(--size) * var(--matrix-x));
+    height: calc(var(--size) * var(--matrix-y));
+    align-content: center;
+    margin: auto;
+    anchor-name: --gameboard;
+    transform: perspective(500px) scale(1, 1) rotateX(15deg);
+    transition: transform 700ms ease;
+}
+
+.grid:hover,
+.grid:focus-within {
+    transform: perspective(500px) scale(1.1, 1.1) rotateX(-0);
+}
+
+.cell {
+    aspect-ratio: 1;
+    place-content: center;
+    text-align: center;
+    background-color: var(--bg-active);
+    line-height: var(--size);
+    cursor: pointer;
+    caret-color: transparent;
+
+    &::selection {
+        background-color: transparent;
+    }
+}
+
+.cell:not(:hover, :focus, :focus-within, .fixed) {
+    background-color: var(--bg-default);
+}
+
+.cell.fixed {
+    background-color: var(--bg-fixed);
+}
+
+.cell:not([contenteditable]) {
+    font-weight: bold;
+}
+
+.grid.show-errors .cell.error {
+    background-color: #cc0000;
+}
+
+.grid.completed .cell {
+    background-color: orange;
+    -webkit-touch-callout: none;
+    /* iOS Safari */
+    -webkit-user-select: none;
+    /* Safari */
+    -khtml-user-select: none;
+    /* Konqueror HTML */
+    -moz-user-select: none;
+    /* Old versions of Firefox */
+    -ms-user-select: none;
+    /* Internet Explorer/Edge */
+    user-select: none;
+}
+
+.modal {
+    position: fixed;
+}
+
+form.modal {
+    --border: var(--gap) solid #fff;
+    --padding: 1rem;
+    top: 0;
+    left: 0;
+    border-bottom: var(--border);
+    border-right: var(--border);
+    font-family: "Noto Sans JP", sans-serif;
+    transform: perspective(500px) scaleZ(2) rotateX(-15deg) translateZ(-50px) translateY(10px);
+    anchor-name: --overhead;
+    transition: transform 500ms ease;
+
+    &:hover,
+    &:focus-within {
+        transform: perspective(500px) scaleZ(2) rotateX(-5deg) translateZ(-50px) translateY(10px);
+    }
+
+    div {
+        display: grid;
+        grid-template-columns: 45px repeat(2, 1fr);
+        align-items: center;
+        gap: var(--padding);
+        width: 100%;
+        padding: var(--padding);
+        background-color: #ddd;
+
+        &>* {
+            padding: .5rem;
+        }
+    }
+
+    label {
+        width: fit-content;
+        text-align: center;
+    }
+
+    input,
+    button {
+        border: 0 none;
+    }
+
+    label,
+    input,
+    button {
+        /* border-radius: 4px; */
+        margin: 0;
+        text-box-trim: both;
+        text-box-edge: cap alphabetic;
+        font-family: "Noto Sans JP", sans-serif;
+        text-align: center;
+    }
+}
+
+.btn {
+    cursor: pointer;
+    text-transform: uppercase;
+    grid-column: span 1;
+}
+
+h1 {
+    position-anchor: --overhead;
+    position: absolute;
+    right: 0;
+    top: anchor(top);
+    margin-left: 10px;
+    transform: perspective(500px) scaleZ(2.5) rotateX(-25deg) translateZ(-50px) translateY(10px);
+    font-size: 120%;
+}
+
+div.congrats {
+    display: none;
+}
+
+#view.completed+div.congrats {
+    margin-top: 1rem;
+    margin-left: 1rem;
+    display: block;
+    text-align: center;
+    font-size: .75rem;
+}
+
+
+body {
+    --grid-color: #fcfcec;
+    --bg-color: #ffffff;
+    background-size: 20px 20px;
+    background-color: var(--bg-color);
+    background-image:
+        linear-gradient(to right, var(--grid-color) 1px, transparent 1px),
+        linear-gradient(to bottom, var(--grid-color) 1px, transparent 1px);
+}
