@@ -23,13 +23,14 @@
 
     font-size: max(calc(var(--size) / 2), 16px);
 
+    padding: 1rem;
     width: calc(var(--size) * var(--matrix-x));
     height: calc(var(--size) * var(--matrix-y));
     align-content: center;
     margin: auto;
-    anchor-name: --gameboard;
     transform: perspective(500px) scale(1, 1) rotateX(15deg);
     transition: transform 700ms ease;
+    anchor-name: --gameboard;
 }
 
 .grid:hover,
@@ -86,7 +87,7 @@
     position: fixed;
 }
 
-form.modal {
+.modal {
     --border: var(--gap) solid #fff;
     --padding: 1rem;
     top: 0;
@@ -103,14 +104,18 @@ form.modal {
         transform: perspective(500px) scaleZ(2) rotateX(-5deg) translateZ(-50px) translateY(10px);
     }
 
-    div {
+    .form-group {
+        padding-block: var(--padding);
+        background-color: #ddd;
+    }
+
+    div.input-group {
         display: grid;
         grid-template-columns: 45px repeat(2, 1fr);
         align-items: center;
         gap: var(--padding);
-        width: 100%;
-        padding: var(--padding);
-        background-color: #ddd;
+        width: auto;
+        padding-inline: var(--padding);
 
         &>* {
             padding: .5rem;
@@ -136,6 +141,10 @@ form.modal {
         text-box-edge: cap alphabetic;
         font-family: "Noto Sans JP", sans-serif;
         text-align: center;
+    }
+
+    input[type='range'] {
+        grid-column: span 2;
     }
 }
 

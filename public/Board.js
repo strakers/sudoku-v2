@@ -1,30 +1,34 @@
 class Board {
-    ref = {};
+    ref = {
+        cells: [],
+        matrix: [],
+        board: null,
+    };
+
+    static type = {
+        ROW: 'row',
+        COLUMN: 'col',
+        SECTOR: 'sec',
+    };
+
+    static __defaults = {
+        difficulty: 3,
+    };
 
     constructor(z = 9, options = {}) {
         const r = Math.sqrt(z);
         this.r = r;
         this.x = z;
         this.y = z;
-        this.options = options;
+        this.options = this.processOptions(options);
         this.cellSize = options?.size ?? '32px';
 
-        this.ref = {
-            cells: [],
-            matrix: Array.from(Array(this.y)).map(()=>[]),
-            board: null,
-        };
+        this.ref.matrix = Array.from(Array(this.y)).map(() => []);
 
         this.errors = {
             row: {},
             col: {},
             sec: {},
-        };
-
-        this.type = {
-            ROW: 'row',
-            COLUMN: 'col',
-            SECTOR: 'sec',
         };
 
         this.showErrors = true;
@@ -70,8 +74,6 @@ class Board {
                 cell.setAttribute('data-sec', sector);
                 cell.setAttribute('contenteditable', true);
 
-                (Math.floor(Math.random() * 50) % 7 === 0 ? setCellFixedValue(cell, Math.floor(Math.random() * this.y)) : '');
-
                 // load cell
                 this.ref.board.appendChild(cell);
                 this.ref.cells.push(cell);
@@ -94,8 +96,19 @@ class Board {
                         console.log('mouseout view errors', this.errors)
                     }
                 });
+
+                // indexing
+                this.ref.cells.push(cell);
             }
         }
+
+        const flag = this.isPerfectSquare();
+
+        // process for fixed blocks
+        this.ref.cells.forEach(cell => {
+            if (this.x > 1)
+                processCellForPossibleFixedValue(cell, flag, this.x, this.options.difficulty);
+        })
 
         // make method chainable
         return this;
@@ -115,15 +128,15 @@ class Board {
         this.ref.board.classList.remove('completed');
 
         const indices = {
-            [this.type.ROW]: cell.dataset.row,
-            [this.type.COLUMN]: cell.dataset.col,
-            [this.type.SECTOR]: cell.dataset.sec,
+            [Board.type.ROW]: cell.dataset.row,
+            [Board.type.COLUMN]: cell.dataset.col,
+            [Board.type.SECTOR]: cell.dataset.sec,
         }
 
         const groups = [
-            [this.type.ROW,     this.ref.board.querySelectorAll(`.cell[data-row='${indices[this.type.ROW]}']`)],
-            [this.type.COLUMN,  this.ref.board.querySelectorAll(`.cell[data-col='${indices[this.type.COLUMN]}']`)],
-            [this.type.SECTOR,  this.ref.board.querySelectorAll(`.cell[data-sec='${indices[this.type.SECTOR]}']`)],
+            [Board.type.ROW,     this.ref.board.querySelectorAll(`.cell[data-row='${indices[Board.type.ROW]}']`)],
+            [Board.type.COLUMN,  this.ref.board.querySelectorAll(`.cell[data-col='${indices[Board.type.COLUMN]}']`)],
+            [Board.type.SECTOR,  this.ref.board.querySelectorAll(`.cell[data-sec='${indices[Board.type.SECTOR]}']`)],
         ];
         if (! this.isPerfectSquare()) groups.pop();
 
@@ -131,7 +144,7 @@ class Board {
 
         groups.forEach(([type, cells]) => {
             const index = indices[type],
-                otherTypes = [this.type.ROW, this.type.COLUMN, this.type.SECTOR].filter(t => t && t !== type);
+                otherTypes = [Board.type.ROW, Board.type.COLUMN, Board.type.SECTOR].filter(t => t && t !== type);
 
             // error checking algorythm
             const hasDuplicateValuesInGroup = calcCountsPerValue(cells).filter(n => n > 1).length > 0;
@@ -183,7 +196,18 @@ class Board {
 
     unlock() {
         this.ref.cells.forEach(c => c.classList.contains('fixed') ? null : c.setAttribute('contenteditable',true));
-    }
+    };
+
+    // prevents the passing of unsafe options
+    // because i'm paranoid
+    processOptions(options = {}) {
+        const {
+            difficulty = Board.__defaults.difficulty,
+        } = options;
+        return {
+            difficulty,
+        }
+    };
 
     isCompleted() {
         if (this.ref.cells.filter(c => c.innerText.trim()).length !== this.ref.cells.length) return false;
@@ -217,12 +241,143 @@ function createCell(id) {
     return c;
 }
 
-function setCellFixedValue(cell, val) {
-    if (isNaN(val) || val < 1) return;
+function processCellForPossibleFixedValue(cell, isPerfectSquare, max, difficulty = 3) {
+    const nfactor = 10, ofactor = 3;
+    if (difficulty / 3 >= max) return;
+    const chance = Math.floor(Math.random() * nfactor * (difficulty+1) * max) % (ofactor * difficulty + max) === 0;
+    if (!chance) return;
+
+    generateAndCheckValue(cell, isPerfectSquare, max);
+}
+
+function generateAndCheckValue(cell, isPerfectSquare, max) {
+
+    const tolerance = 10;
+
+    // check value agains existing dataset
+    const groups = [
+        Board.type.ROW,
+        Board.type.COLUMN,
+        isPerfectSquare ? Board.type.SECTOR : null,
+    ].filter(t => t);
+
+    // generate value
+    let val = generateRandomCellValue(max);
+
+    // cycle to produce valid next number (or else exit)
+    let n = 0, k = 0;
+    while (n === 0 && k < tolerance) {
+        k++; // prevents infinite loops if something goes wrong
+
+        const errorGroups = groups.filter(type => {
+            const list = getCellGroupDataArray(type, cell.dataset[type]);
+            list.push(val);
+            const filteredList = list.filter(x => x * 1);
+            const numCounts = {};
+            filteredList.forEach(v => {
+                numCounts[v] = (numCounts[v] || 0) + 1;
+            });
+
+            const hasDuplicates = Object.values(numCounts).filter(x => x > 1).length > 0;
+            return hasDuplicates;
+        });
+
+        if (errorGroups.length) {
+            val = generateRandomCellValue(max);
+        }
+        else {
+            n = val;
+        }
+    }
+
+    // do not process zeros
+    if (n === 0) return;
+
+    // set value and set fixed status
+    setCellToFixedValue(cell, n);
+    // console.log('generate value', n, cell.dataset.row, cell.dataset.col, cell.dataset.sec);
+}
+
+function getCellGroupDataArray(type, index) {
+    const group = document.querySelectorAll(`.cell[data-${type}='${index}']`);
+    return [...group].map(c => c.innerText.trim());
+}
+
+function generateRandomCellValue(max) {
+    let n = 0;
+    while (n === 0) n = Math.floor(Math.random() * max);
+    return n;
+}
+
+function setCellToFixedValue(cell, val) {
     cell.removeAttribute('contenteditable');
     cell.classList.add('fixed');
     cell.innerText = val;
 }
+
+
+
+// function getAndCheckRandomValueForCell(cell, isPerfectSquare, max) {
+//     const fixedValue = Math.floor(Math.random() * max);
+
+//     if (fixedValue === 0) return 0;
+
+//     cell.innerText = fixedValue;
+//     if (!validateValuePerCellGroups(cell, fixedValue, isPerfectSquare)) return 0;
+
+//     console.log('....| validated |', fixedValue, '|....')
+//     return fixedValue;
+// }
+
+// function setCellToFixed(cell) {
+//     cell.removeAttribute('contenteditable');
+//     cell.classList.add('fixed');
+// }
+
+// function validateValuePerCellGroups(cell, val, isPerfectSquare = false) {
+
+//     const groups = [
+//         Board.type.ROW,
+//         Board.type.COLUMN,
+//         // isPerfectSquare ? Board.type.SECTOR : null,
+//     ].filter(x => x);
+
+//     const indices = {
+//         [Board.type.ROW]: cell.dataset.row,
+//         [Board.type.COLUMN]: cell.dataset.col,
+//         [Board.type.SECTOR]: cell.dataset.sec,
+//     }
+
+//      console.log('validation summary', 'TYPE', 'VAL', "//", 'DUP', 'FILL','MATCH', "ERROR");
+
+//     const assortment = {};
+
+//     const errors = groups.filter(type => {
+//         const cells = document.querySelectorAll(`.cell[data-${type}='${indices[type]}']`);
+
+//         assortment[type] = [...cells].map(c => c.innerText);
+
+//         console.log('assortment', type, assortment[type], cells.length,`.cell[data-${type}='${indices[type]}']`);
+
+
+//         // error checking algorythm
+//         const hasDuplicateValuesInGroup = calcCountsPerValue(cells).filter(n => n > 1).length > 0;
+//         const hasAllCellsFilledInGroup = [...cells].filter(c => c.innerText.trim()).length === cells.length;
+//         const hasSumMatchingGroupSum = calcSumOfCells(cells)  === this.groupSum;
+//         const errorFound = hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? !hasSumMatchingGroupSum : false);
+
+//         console.log('validation summary', type, cell.innerText, "//",
+//             hasDuplicateValuesInGroup,
+//             hasAllCellsFilledInGroup,
+//             hasSumMatchingGroupSum,
+//             hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? hasSumMatchingGroupSum : false)
+//         );
+
+//         return errorFound;
+//     });
+
+//     return errors.length === 0;
+// }
 
 function selectText(elem) {
     if (document.body.createTextRange) {
