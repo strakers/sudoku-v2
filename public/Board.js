@@ -93,7 +93,7 @@ class Board {
                     if (e.target.getAttribute('data-changed') == "true") {
                         this.validateCell(e.target);
                         e.target.setAttribute('data-changed',false);
-                        console.log('mouseout view errors', this.errors)
+                        // console.log('mouseout view errors', this.errors)
                     }
                 });
 
@@ -113,7 +113,6 @@ class Board {
         // resize board depending on board size and viewport size
         // always keeps it within viewport
         const sizeLimit = Math.floor(Math.min(window.innerWidth, window.innerHeight - 250) / 32) - 3;
-        console.log('viewport limit', sizeLimit);
         setTimeout(() => {
             document.getElementById('mesh').style.transform = `scale(${this.x > sizeLimit ? sizeLimit / (this.x + 1) : 1})`;
         }, 500);

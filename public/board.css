@@ -75,15 +75,10 @@
 .grid.completed .cell {
     background-color: orange;
     -webkit-touch-callout: none;
-    /* iOS Safari */
     -webkit-user-select: none;
-    /* Safari */
     -khtml-user-select: none;
-    /* Konqueror HTML */
     -moz-user-select: none;
-    /* Old versions of Firefox */
     -ms-user-select: none;
-    /* Internet Explorer/Edge */
     user-select: none;
 }
 
@@ -172,9 +167,8 @@ div.congrats {
     display: none;
 }
 
-#view.completed+div.congrats {
+#mesh:has(#view.completed)+.wrapper div.congrats {
     margin-top: 1rem;
-    margin-left: 1rem;
     display: block;
     text-align: center;
     font-size: .75rem;
