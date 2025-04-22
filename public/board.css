@@ -15,6 +15,13 @@
     place-content: center;
 }
 
+.wrapper {
+    width: auto;
+    transform: scale(1, 1);
+    transition: transform 500ms ease;
+    place-items: center;
+}
+
 .grid {
     display: grid;
     grid-template-columns: repeat(var(--matrix-x), 1fr);
@@ -24,10 +31,7 @@
     font-size: max(calc(var(--size) / 2), 16px);
 
     padding: 1rem;
-    width: calc(var(--size) * var(--matrix-x));
-    height: calc(var(--size) * var(--matrix-y));
     align-content: center;
-    margin: auto;
     transform: perspective(500px) scale(1, 1) rotateX(15deg);
     transition: transform 700ms ease;
     anchor-name: --gameboard;
@@ -158,8 +162,8 @@ h1 {
     position-anchor: --overhead;
     position: absolute;
     right: 0;
-    top: anchor(top);
-    margin-left: 10px;
+    top: 10px;
+    margin-right: 10px;
     transform: perspective(500px) scaleZ(2.5) rotateX(-25deg) translateZ(-50px) translateY(10px);
     font-size: 120%;
 }

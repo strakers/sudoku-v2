@@ -110,6 +110,14 @@ class Board {
                 processCellForPossibleFixedValue(cell, flag, this.x, this.options.difficulty);
         })
 
+        // resize board depending on board size and viewport size
+        // always keeps it within viewport
+        const sizeLimit = Math.floor(Math.min(window.innerWidth, window.innerHeight - 250) / 32) - 3;
+        console.log('viewport limit', sizeLimit);
+        setTimeout(() => {
+            document.getElementById('mesh').style.transform = `scale(${this.x > sizeLimit ? sizeLimit / (this.x + 1) : 1})`;
+        }, 500);
+
         // make method chainable
         return this;
     };
@@ -314,70 +322,6 @@ function setCellToFixedValue(cell, val) {
     cell.classList.add('fixed');
     cell.innerText = val;
 }
-
-
-
-// function getAndCheckRandomValueForCell(cell, isPerfectSquare, max) {
-//     const fixedValue = Math.floor(Math.random() * max);
-
-//     if (fixedValue === 0) return 0;
-
-//     cell.innerText = fixedValue;
-//     if (!validateValuePerCellGroups(cell, fixedValue, isPerfectSquare)) return 0;
-
-//     console.log('....| validated |', fixedValue, '|....')
-//     return fixedValue;
-// }
-
-// function setCellToFixed(cell) {
-//     cell.removeAttribute('contenteditable');
-//     cell.classList.add('fixed');
-// }
-
-// function validateValuePerCellGroups(cell, val, isPerfectSquare = false) {
-
-//     const groups = [
-//         Board.type.ROW,
-//         Board.type.COLUMN,
-//         // isPerfectSquare ? Board.type.SECTOR : null,
-//     ].filter(x => x);
-
-//     const indices = {
-//         [Board.type.ROW]: cell.dataset.row,
-//         [Board.type.COLUMN]: cell.dataset.col,
-//         [Board.type.SECTOR]: cell.dataset.sec,
-//     }
-
-//      console.log('validation summary', 'TYPE', 'VAL', "//", 'DUP', 'FILL','MATCH', "ERROR");
-
-//     const assortment = {};
-
-//     const errors = groups.filter(type => {
-//         const cells = document.querySelectorAll(`.cell[data-${type}='${indices[type]}']`);
-
-//         assortment[type] = [...cells].map(c => c.innerText);
-
-//         console.log('assortment', type, assortment[type], cells.length,`.cell[data-${type}='${indices[type]}']`);
-
-
-//         // error checking algorythm
-//         const hasDuplicateValuesInGroup = calcCountsPerValue(cells).filter(n => n > 1).length > 0;
-//         const hasAllCellsFilledInGroup = [...cells].filter(c => c.innerText.trim()).length === cells.length;
-//         const hasSumMatchingGroupSum = calcSumOfCells(cells)  === this.groupSum;
-//         const errorFound = hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? !hasSumMatchingGroupSum : false);
-
-//         console.log('validation summary', type, cell.innerText, "//",
-//             hasDuplicateValuesInGroup,
-//             hasAllCellsFilledInGroup,
-//             hasSumMatchingGroupSum,
-//             hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? hasSumMatchingGroupSum : false)
-//         );
-
-//         return errorFound;
-//     });
-
-//     return errors.length === 0;
-// }
 
 function selectText(elem) {
     if (document.body.createTextRange) {
