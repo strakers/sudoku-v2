@@ -63,12 +63,13 @@ class Board {
         }
 
         // draw board on page
-        for (let row = 0, sector = 0; row < this.y; ++row) {
+        for (let row = 0, index = 0, sector = 0; row < this.y; ++row) {
             for (let col = 0; col < this.x; ++col) {
                 sector = (Math.floor(row / this.r) * this.r) + Math.floor(col / this.r);
 
                 // build cell
                 let cell = createCell(row * this.x + col);
+                cell.setAttribute('data-index', index++);
                 cell.setAttribute('data-row', row);
                 cell.setAttribute('data-col', col);
                 cell.setAttribute('data-sec', sector);
@@ -81,8 +82,10 @@ class Board {
 
                 // load cell
                 this.ref.board.appendChild(cell);
+
+                // indexing
                 this.ref.cells.push(cell);
-                this.ref.matrix[row].push(cell);
+                // this.ref.matrix[row][col] = cell;
 
                 // equip cell with action listeners
                 cell.addEventListener('click', e => selectText(e.target));
@@ -102,38 +105,59 @@ class Board {
                     }
                 });
 
-                // indexing
-                this.ref.cells.push(cell);
             }
         }
 
         const flag = this.isPerfectSquare();
+        const signature = this.options.signature;
 
-        // process for fixed blocks
-        this.ref.cells.forEach(cell => {
-            if (this.x > 1)
+        // set fixed values from signature, else calculate them using algorythm
+        if (signature) {
+            for (let i in signature) {
+                setCellToFixedValue(this.ref.cells[i], signature[i]);
+            }
+        }
+        else {
+            this.ref.cells.forEach((cell) => {
+                if (this.x <= 1) return;
                 processCellForPossibleFixedValue(cell, flag, this.x, this.options.difficulty);
-        })
+            });
+        }
 
-        // resize board depending on board size and viewport size
+        // resize and reposition board depending on board size and viewport size
         // always keeps it within viewport
         const sizeLimit = Math.floor(Math.min(window.innerWidth, window.innerHeight - 250) / 32) - 3;
         setTimeout(() => {
-            document.getElementById('mesh').style.transform = `scale(${this.x > sizeLimit ? sizeLimit / (this.x + 1) : 1})`;
+            document.getElementById('mesh').style.transform = `scale(${this.x > sizeLimit ? sizeLimit / (this.x + 1) : 1}) translateY(0%)`;
+            const sh = document.getElementById('mesh').scrollHeight, wh = window.innerHeight, step = 20, dur = 1000;
+            if (sh <= wh) return;
+            for (let i = 0; i < sh; i += step) {
+                setTimeout(() => {
+                    window.scrollTo({
+                        top: (sh / (dur / step)) * i ,
+                        behavior: 'smooth',
+                    });
+                }, i)
+            }
         }, 500);
+
+        // keep this
+        console.log('signature:', location.origin + location.pathname + '?s=' + this.getSignature());
+        console.log('level:', this.options.difficulty);
 
         // make method chainable
         return this;
     };
 
     destroy() {
-        this.ref.board.classList.remove('completed');
-
         this.ref.cells = null;
         this.ref.matrix = null;
 
-        this.ref.board.innerHTML = '';
-        this.ref.board = null;
+        if (this.ref.board) {
+            this.ref.board.classList.remove('completed');
+            this.ref.board.innerHTML = '';
+            this.ref.board = null;
+        }
     }
 
     validateCell(cell) {
@@ -163,13 +187,6 @@ class Board {
             const hasAllCellsFilledInGroup = [...cells].filter(c => c.innerText.trim()).length === cells.length;
             const hasSumMatchingGroupSum = calcSumOfCells(cells)  === this.groupSum;
             this.errors[type][index] = hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? !hasSumMatchingGroupSum : false);
-
-            // console.log('validation summary', type, "//",
-            //     hasDuplicateValuesInGroup,
-            //     hasAllCellsFilledInGroup,
-            //     hasSumMatchingGroupSum,
-            //     hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? hasSumMatchingGroupSum : false)
-            // );
 
             // report error status per cell
             if (this.errors[type][index]) {
@@ -215,9 +232,11 @@ class Board {
     processOptions(options = {}) {
         const {
             difficulty = Board.__defaults.difficulty,
+            signature = null,
         } = options;
         return {
             difficulty,
+            signature,
         }
     };
 
@@ -237,13 +256,55 @@ class Board {
 
     isPerfectSquare() {
         if (! this.hasEqualSides()) return false;
-        return Math.pow(Math.sqrt(this.x),2) === this.x;
+        return Math.pow(Math.floor(Math.sqrt(this.x)),2) === this.x;
+    };
+
+    get hash() {
+        return [
+            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+            ...('abcdefghijklmnopqrstuvwxyz').split(''),
+            ...('~!@#$%^&*()<>?[]{}\\/').split('')
+        ];
+    };
+
+    getSignature() {
+        const cells = this.ref.board.querySelectorAll('.cell');
+        const givens = [];
+        for (let i = 0, c = null, t = ''; i < cells.length; ++i) {
+            c = cells[i];
+            if (!(c.classList.contains('fixed') && c.dataset.index == i)) continue;
+            t = c.innerText.trim();
+            givens.push(`${i},${t}`);
+        }
+        return btoa(this.x + ':' + givens.join(';'));
+    };
+
+
+    /**
+     *
+     * @param {string} signature
+     */
+    static fromSignature(encryptedSignature, options = {}) {
+        const [size, pattern] = Board.parseSignature(encryptedSignature);
+        if (!size) return;
+        return new Board(size * 1, {...options, signature: pattern})
+    };
+
+    static parseSignature(encryptedSignature) {
+        const signature = atob(encryptedSignature), n = {};
+        if (!signature.match(/^\d+\:(\d+,\d+;?)+/)) return [null, null];
+        const [z, sig] = signature.split(':');
+        sig.split(';').forEach(s => {
+            const [i, x] = s.split(',');
+            n[i] = x;
+        });
+        return [z, n];
     };
 
     static fromRoot(r, options) {
         const z = Math.pow(r, 2);
-        return new this(z, options);
-    }
+        return new this(z * 1, options);
+    };
 }
 
 function createCell(id) {

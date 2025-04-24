@@ -166,7 +166,7 @@
 
 h1 {
     position-anchor: --overhead;
-    position: absolute;
+    position: fixed;
     right: 0;
     top: 10px;
     margin-right: 10px;
