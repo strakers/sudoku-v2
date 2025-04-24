@@ -74,6 +74,11 @@ class Board {
                 cell.setAttribute('data-sec', sector);
                 cell.setAttribute('contenteditable', true);
 
+                if (this.isPerfectSquare()) {
+                    const is_odd_sector = isOddSector(sector, this.r);
+                    if (is_odd_sector) cell.classList.add('sector-highlight');
+                }
+
                 // load cell
                 this.ref.board.appendChild(cell);
                 this.ref.cells.push(cell);
@@ -350,4 +355,10 @@ function calcCountsPerValue(elems) {
         counts[v] = (counts[v] || 0) + 1;
     })
     return Object.values(counts);
+}
+
+function isOddSector(n, base) {
+    return (
+        (n % 2) + ((base + 1) % 2) * Math.floor(n / base)
+    ) % 2;
 }

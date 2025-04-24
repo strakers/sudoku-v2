@@ -4,8 +4,9 @@
     --matrix-y: 1;
     --gap: 3px;
     --bg-default: hsl(from gold h s 70%);
+    --bg-sector-highlight: hsl(from gold 45 70% 70%);
     --bg-active: hsl(from green h s 70%);
-    --bg-fixed: hsl(from #000 h s 70%);
+    --bg-fixed: hsl(from gold h 20% 25%);
     --bg-error: hsl(from #cc0000 h s 70%);
     font-family: "Noto Sans JP", sans-serif;
 }
@@ -61,10 +62,15 @@
 
 .cell:not(:hover, :focus, :focus-within, .fixed) {
     background-color: var(--bg-default);
+
+    &.sector-highlight {
+        background-color: var(--bg-sector-highlight);
+    }
 }
 
 .cell.fixed {
     background-color: var(--bg-fixed);
+    color: #fffe;
 }
 
 .cell:not([contenteditable]) {
