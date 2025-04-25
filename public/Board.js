@@ -5,6 +5,12 @@ class Board {
         board: null,
     };
 
+    errors = {
+        row: {},
+        col: {},
+        sec: {},
+    };
+
     static type = {
         ROW: 'row',
         COLUMN: 'col',
@@ -16,38 +22,46 @@ class Board {
     };
 
     constructor(z = 9, options = {}) {
+        this.setDimensions(z, z);
         const r = Math.sqrt(z);
         this.r = r;
-        this.x = z;
-        this.y = z;
+
         this.options = this.processOptions(options);
         this.cellSize = options?.size ?? '32px';
 
-        this.ref.matrix = Array.from(Array(this.y)).map(() => []);
-
-        this.errors = {
-            row: {},
-            col: {},
-            sec: {},
-        };
-
-        this.showErrors = true;
+        this.ref.matrix = new Matrix();
+        this.showErrors = options?.showErrors ?? true;
         this.groupSum = (this.x/2)*(1+this.y);
 
         this.updateCssRoot();
     };
 
-    updateCssRoot() {
-        const r = document.querySelector(':root');
-        const s = r.style;
-        s.setProperty('--matrix-x',this.x);
-        s.setProperty('--matrix-y',this.y);
-        s.setProperty('--size',this.cellSize);
+    build(selector) {
+        this.setBoard(selector);
+
+        // draw board on page
+        this.drawBoardContents();
+
+        // resize and reposition board depending on board size and viewport size
+        // always keeps it within viewport
+        this.resize();
+
+        // keep this
+        console.log('signature:', location.origin + location.pathname + '?s=' + this.getSignature());
+        console.log('level:', this.options.difficulty);
+
+        // make method chainable
+        return this;
     };
 
-    build(selector) {
+    setDimensions(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    setBoard(selector) {
         this.ref.board = document.querySelector(selector);
-        if (! this.ref.board) return; // should throw error
+        if (!this.ref.board) throw new Error(`Element with selector "${selector}" was not found.`);
 
         // remove any prior instances of boards for garbage collection
         if (this.ref.board?.instance) {
@@ -61,69 +75,97 @@ class Board {
         if (this.showErrors) {
             this.ref.board.classList.add('show-errors');
         }
+    }
 
+    updateCssRoot() {
+        const r = document.querySelector(':root');
+        const s = r.style;
+        s.setProperty('--matrix-x',this.x);
+        s.setProperty('--matrix-y',this.y);
+        s.setProperty('--size',this.cellSize);
+    };
+
+    drawBoardContents() {
         // draw board on page
         for (let row = 0, index = 0, sector = 0; row < this.y; ++row) {
             for (let col = 0; col < this.x; ++col) {
                 sector = (Math.floor(row / this.r) * this.r) + Math.floor(col / this.r);
 
                 // build cell
-                let cell = createCell(row * this.x + col);
-                cell.setAttribute('data-index', index++);
-                cell.setAttribute('data-row', row);
-                cell.setAttribute('data-col', col);
-                cell.setAttribute('data-sec', sector);
-                cell.setAttribute('contenteditable', true);
-
-                if (this.isPerfectSquare()) {
-                    const is_odd_sector = isOddSector(sector, this.r);
-                    if (is_odd_sector) cell.classList.add('sector-highlight');
-                }
-
-                // load cell
-                this.ref.board.appendChild(cell);
-
-                // indexing
-                this.ref.cells.push(cell);
-                // this.ref.matrix[row][col] = cell;
+                let cell = this.drawCell(index, row, col, sector);
+                index++;
 
                 // equip cell with action listeners
-                cell.addEventListener('click', e => selectText(e.target));
-                cell.addEventListener('input', e => e.target.setAttribute('data-changed', true));
-                cell.addEventListener('keypress', e => {
-                    (!(e.key > 0 && e.key <= this.x)) && e.preventDefault();
-                    (e.key === 'Enter'||e.code === 'Space') && e.target.blur();
-                    (e.key === '0') ? e.target.innerText = '' : null;
-                    // console.log('press',e)
-                });
-                cell.addEventListener('focusout', e => {
-                    e.target.innerText = e.target.innerText.trim();
-                    if (e.target.getAttribute('data-changed') == "true") {
-                        this.validateCell(e.target);
-                        e.target.setAttribute('data-changed',false);
-                        // console.log('mouseout view errors', this.errors)
-                    }
-                });
-
+                this.addCellInteractionEventListeners(cell);
             }
         }
 
+        // set fixed values from signature, else calculate them using algorythm
+        this.generateGivens();
+    }
+
+    drawCell(index, x, y, group) {
+        const cell = createCell(x * this.x + y);
+        cell.setAttribute('data-index', index);
+        cell.setAttribute('data-row', x);
+        cell.setAttribute('data-col', y);
+        cell.setAttribute('data-sec', group);
+        cell.setAttribute('contenteditable', true);
+
+        // index cells for later referencing
+        this.ref.board.appendChild(cell);
+        this.ref.cells.push(cell);
+        this.ref.matrix.add(x, y, cell);
+
+        // draws highlights when dimensions are perfect square
+        this.drawSectorHighlights(cell, group);
+
+        return cell;
+    }
+
+    drawSectorHighlights(cell, sector) {
+        if (!this.isPerfectSquare()) return;
+        if (!isOddSector(sector, this.r)) return;
+        cell.classList.add('sector-highlight');
+    }
+
+    addCellInteractionEventListeners(cell) {
+        cell.addEventListener('click', e => selectText(e.target));
+        cell.addEventListener('input', e => e.target.setAttribute('data-changed', true));
+        cell.addEventListener('keypress', e => {
+            (!(e.key > 0 && e.key <= this.x)) && e.preventDefault();
+            (e.key === 'Enter'||e.code === 'Space') && e.target.blur();
+            (e.key === '0') ? e.target.innerText = '' : null;
+        });
+        cell.addEventListener('focusout', e => {
+            e.target.innerText = e.target.innerText.trim();
+            if (e.target.getAttribute('data-changed') == "true") {
+                this.validateCell(e.target);
+                e.target.setAttribute('data-changed',false);
+            }
+        });
+    }
+
+    generateGivens() {
         const flag = this.isPerfectSquare();
         const signature = this.options.signature;
 
-        // set fixed values from signature, else calculate them using algorythm
+        // populate givens based on signature
         if (signature) {
             for (let i in signature) {
                 setCellToFixedValue(this.ref.cells[i], signature[i]);
             }
         }
+        // calculate random givens based on difficulty level
         else {
             this.ref.cells.forEach((cell) => {
                 if (this.x <= 1) return;
                 processCellForPossibleFixedValue(cell, flag, this.x, this.options.difficulty);
             });
         }
+    };
 
+    resize() {
         // resize and reposition board depending on board size and viewport size
         // always keeps it within viewport
         const sizeLimit = Math.floor(Math.min(window.innerWidth, window.innerHeight - 250) / 32) - 3;
@@ -140,14 +182,7 @@ class Board {
                 }, i)
             }
         }, 500);
-
-        // keep this
-        console.log('signature:', location.origin + location.pathname + '?s=' + this.getSignature());
-        console.log('level:', this.options.difficulty);
-
-        // make method chainable
-        return this;
-    };
+    }
 
     destroy() {
         this.ref.cells = null;
@@ -233,10 +268,12 @@ class Board {
         const {
             difficulty = Board.__defaults.difficulty,
             signature = null,
+            showErrors = true,
         } = options;
         return {
             difficulty,
             signature,
+            showErrors,
         }
     };
 
@@ -282,6 +319,20 @@ class Board {
 
     /**
      *
+     * @param {string} param
+     * @param {object} options
+     * @returns
+     */
+    static fromSearchQueryParam(param, options = {}) {
+        if (!param) return null;
+        const q = new URLSearchParams(window.location.search),
+            p = q.get(param);
+        if (!p) return null;
+        return Board.fromSignature(p, options);
+    }
+
+    /**
+     *
      * @param {string} signature
      */
     static fromSignature(encryptedSignature, options = {}) {
@@ -290,6 +341,11 @@ class Board {
         return new Board(size * 1, {...options, signature: pattern})
     };
 
+    /**
+     *
+     * @param {string} encryptedSignature
+     * @returns
+     */
     static parseSignature(encryptedSignature) {
         const signature = atob(encryptedSignature), n = {};
         if (!signature.match(/^\d+\:(\d+,\d+;?)+/)) return [null, null];
@@ -301,6 +357,12 @@ class Board {
         return [z, n];
     };
 
+    /**
+     *
+     * @param {number} r
+     * @param {object} options
+     * @returns
+     */
     static fromRoot(r, options) {
         const z = Math.pow(r, 2);
         return new this(z * 1, options);
@@ -422,4 +484,40 @@ function isOddSector(n, base) {
     return (
         (n % 2) + ((base + 1) % 2) * Math.floor(n / base)
     ) % 2;
+}
+
+class Matrix {
+    _data = {};
+
+    has(x, y) {
+        return (x in this._data && y in x in this._data[x]);
+    }
+
+    add(x, y, value) {
+        if (!(x in this._data)) {
+            this._data[x] = {};
+        }
+        this._data[x][y] = value;
+    };
+
+    get(x, y) {
+        if (this.has(x,y)) return this._data[x][y];
+        return null;
+    };
+
+    remove(x, y) {
+        if (this.has(x,y)) this._data[x][y] = null;
+    };
+
+    all() {
+        return this._data;
+    }
+
+    * iterator() {
+        for (let x in this._data) {
+            for (let y in this._data[x]) {
+                yield this._data[x][y];
+            }
+        }
+    }
 }

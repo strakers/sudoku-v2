@@ -74,9 +74,7 @@
       });
       // initializer
       (function () {
-        const q = new URLSearchParams(window.location.search),
-          s = q.get('s');
-        const board = s ? Board.fromSignature(s) : new Board(9);
+        const board = Board.fromSearchQueryParam('s') ?? new Board(9);
         board.build('#view');
       })();
     </script>
