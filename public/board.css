@@ -4,8 +4,9 @@
     --matrix-y: 1;
     --gap: 3px;
     --bg-default: hsl(from gold h s 70%);
+    --bg-sector-highlight: hsl(from gold 45 70% 70%);
     --bg-active: hsl(from green h s 70%);
-    --bg-fixed: hsl(from #000 h s 70%);
+    --bg-fixed: hsl(from gold h 20% 25%);
     --bg-error: hsl(from #cc0000 h s 70%);
     font-family: "Noto Sans JP", sans-serif;
 }
@@ -15,21 +16,28 @@
     place-content: center;
 }
 
+.wrapper {
+    width: auto;
+    transform: scale(1, 1);
+    transition: transform 500ms ease;
+    place-items: center;
+    align-content: center;
+}
+
 .grid {
     display: grid;
-    grid-template-columns: repeat(var(--matrix-x), 1fr);
-    grid-template-rows: repeat(var(--matrix-y), 1fr);
+    grid-template-columns: repeat(var(--matrix-x), var(--size));
+    grid-template-rows: repeat(var(--matrix-y), var(--size));
     gap: var(--gap);
 
     font-size: max(calc(var(--size) / 2), 16px);
 
-    width: calc(var(--size) * var(--matrix-x));
-    height: calc(var(--size) * var(--matrix-y));
+    padding: 1rem;
     align-content: center;
-    margin: auto;
-    anchor-name: --gameboard;
+    place-content: center;
     transform: perspective(500px) scale(1, 1) rotateX(15deg);
     transition: transform 700ms ease;
+    anchor-name: --gameboard;
 }
 
 .grid:hover,
@@ -45,6 +53,7 @@
     line-height: var(--size);
     cursor: pointer;
     caret-color: transparent;
+    max-width: 32px;
 
     &::selection {
         background-color: transparent;
@@ -53,10 +62,15 @@
 
 .cell:not(:hover, :focus, :focus-within, .fixed) {
     background-color: var(--bg-default);
+
+    &.sector-highlight {
+        background-color: var(--bg-sector-highlight);
+    }
 }
 
 .cell.fixed {
     background-color: var(--bg-fixed);
+    color: #fffe;
 }
 
 .cell:not([contenteditable]) {
@@ -70,15 +84,10 @@
 .grid.completed .cell {
     background-color: orange;
     -webkit-touch-callout: none;
-    /* iOS Safari */
     -webkit-user-select: none;
-    /* Safari */
     -khtml-user-select: none;
-    /* Konqueror HTML */
     -moz-user-select: none;
-    /* Old versions of Firefox */
     -ms-user-select: none;
-    /* Internet Explorer/Edge */
     user-select: none;
 }
 
@@ -86,7 +95,7 @@
     position: fixed;
 }
 
-form.modal {
+.modal {
     --border: var(--gap) solid #fff;
     --padding: 1rem;
     top: 0;
@@ -97,20 +106,26 @@ form.modal {
     transform: perspective(500px) scaleZ(2) rotateX(-15deg) translateZ(-50px) translateY(10px);
     anchor-name: --overhead;
     transition: transform 500ms ease;
+    display: block;
+    z-index: 2;
 
     &:hover,
     &:focus-within {
         transform: perspective(500px) scaleZ(2) rotateX(-5deg) translateZ(-50px) translateY(10px);
     }
 
-    div {
+    .form-group {
+        padding-block: var(--padding);
+        background-color: #ddd;
+    }
+
+    div.input-group {
         display: grid;
         grid-template-columns: 45px repeat(2, 1fr);
         align-items: center;
         gap: var(--padding);
-        width: 100%;
-        padding: var(--padding);
-        background-color: #ddd;
+        width: auto;
+        padding-inline: var(--padding);
 
         &>* {
             padding: .5rem;
@@ -137,6 +152,10 @@ form.modal {
         font-family: "Noto Sans JP", sans-serif;
         text-align: center;
     }
+
+    input[type='range'] {
+        grid-column: span 2;
+    }
 }
 
 .btn {
@@ -147,10 +166,10 @@ form.modal {
 
 h1 {
     position-anchor: --overhead;
-    position: absolute;
+    position: fixed;
     right: 0;
-    top: anchor(top);
-    margin-left: 10px;
+    top: 10px;
+    margin-right: 10px;
     transform: perspective(500px) scaleZ(2.5) rotateX(-25deg) translateZ(-50px) translateY(10px);
     font-size: 120%;
 }
@@ -159,9 +178,8 @@ div.congrats {
     display: none;
 }
 
-#view.completed+div.congrats {
+#mesh:has(#view.completed)+.wrapper div.congrats {
     margin-top: 1rem;
-    margin-left: 1rem;
     display: block;
     text-align: center;
     font-size: .75rem;
