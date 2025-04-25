@@ -17,6 +17,12 @@ class Board {
         SECTOR: 'sec',
     };
 
+    static vectors = [
+        this.type.ROW,
+        this.type.COLUMN,
+        this.type.SECTOR,
+    ];
+
     static __defaults = {
         difficulty: 3,
     };
@@ -36,6 +42,11 @@ class Board {
         this.updateCssRoot();
     };
 
+    /**
+     *
+     * @param {string} selector
+     * @returns
+     */
     build(selector) {
         this.setBoard(selector);
 
@@ -133,9 +144,8 @@ class Board {
         cell.addEventListener('click', e => selectText(e.target));
         cell.addEventListener('input', e => e.target.setAttribute('data-changed', true));
         cell.addEventListener('keypress', e => {
-            (!(e.key > 0 && e.key <= this.x)) && e.preventDefault();
-            (e.key === 'Enter'||e.code === 'Space') && e.target.blur();
-            (e.key === '0') ? e.target.innerText = '' : null;
+            if (!(e.key > 0 && e.key <= this.x)) e.preventDefault();
+            if (e.key === 'Enter' || e.code === 'Space') e.target.blur();
         });
         cell.addEventListener('focusout', e => {
             e.target.innerText = e.target.innerText.trim();
@@ -195,71 +205,122 @@ class Board {
         }
     }
 
+    /**
+     *
+     * @param {Node} cell
+     */
     validateCell(cell) {
         this.ref.board.classList.remove('completed');
 
-        const indices = {
-            [Board.type.ROW]: cell.dataset.row,
-            [Board.type.COLUMN]: cell.dataset.col,
-            [Board.type.SECTOR]: cell.dataset.sec,
-        }
+        // only check sectors if board dimensions are perfect square
+        const vectors = Board.vectors.slice();
+        if (!this.isPerfectSquare()) vectors.pop();
 
-        const groups = [
-            [Board.type.ROW,     this.ref.board.querySelectorAll(`.cell[data-row='${indices[Board.type.ROW]}']`)],
-            [Board.type.COLUMN,  this.ref.board.querySelectorAll(`.cell[data-col='${indices[Board.type.COLUMN]}']`)],
-            [Board.type.SECTOR,  this.ref.board.querySelectorAll(`.cell[data-sec='${indices[Board.type.SECTOR]}']`)],
-        ];
-        if (! this.isPerfectSquare()) groups.pop();
+        // check cells for errors by vector
+        const [cellsForCleaning, cellsWithErrors] = this.checkCellErrorsByVector(cell, vectors);
 
-        // console.log('validation summary', 'TYPE', "//", 'DUP', 'FILL','MATCH', "ERROR");
-
-        groups.forEach(([type, cells]) => {
-            const index = indices[type],
-                otherTypes = [Board.type.ROW, Board.type.COLUMN, Board.type.SECTOR].filter(t => t && t !== type);
-
-            // error checking algorythm
-            const hasDuplicateValuesInGroup = calcCountsPerValue(cells).filter(n => n > 1).length > 0;
-            const hasAllCellsFilledInGroup = [...cells].filter(c => c.innerText.trim()).length === cells.length;
-            const hasSumMatchingGroupSum = calcSumOfCells(cells)  === this.groupSum;
-            this.errors[type][index] = hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? !hasSumMatchingGroupSum : false);
-
-            // report error status per cell
-            if (this.errors[type][index]) {
-                [...cells].forEach((cell) => cell.classList.add('error'));
-                return;
-            }
-
-            // clear cells of any error status where applicable
-            // loop through each cell and remove error class if cell otherTypes do not have error set.
-            [...cells].forEach((cell) => {
-                const [otherType1, otherType2] = otherTypes,
-                i1 = cell.dataset[otherType1],
-                i2 = cell.dataset[otherType2];
-                if (!this.errors[otherType1][i1] && !this.errors[otherType2][i2]) {
-                    cell.classList.remove('error');
-                }
-            });
-        });
+        // loop through cells to try to clear them
+        this.cleanUpNonErrorCells(cellsForCleaning, vectors);
 
         // mark complete if board is successfully filled with no errors
         if (this.isCompleted()) {
-            this.ref.board.classList.add('completed');
-            this.lock();
-            confetti({
-                particleCount: 100,
-                spread: 70,
-                origin: { y: 0.6 },
-            });
-            document.querySelector('#loader_btn').focus();
+            this.markCompleted();
         }
     };
 
+    /**
+     *
+     * @param {Node} cell
+     * @param {typeof Board.vectors} vectors
+     * @returns {[Node[],Node[]]}
+     */
+    checkCellErrorsByVector(cell, vectors) {
+        let cellsWithErrors = [];
+        let cellsForCleaning = [];
+
+        // check cell for errors on each vector
+        vectors.forEach((t) => {
+            let index = cell.dataset[t];
+            let cellGroup = this.ref.board.querySelectorAll(`.cell[data-${t}='${index}']`);
+
+            // error checking algorythm
+            this.errors[t][index] = this.checkCellsHaveErrors(cellGroup);
+
+            // report error status per cell
+            if (this.errors[t][index]) {
+                this.markCellsAsError(cellGroup);
+                cellsWithErrors = [...cellsWithErrors, ...cellGroup];
+                return;
+            }
+
+            // make list of cells for clearing
+            cellsForCleaning = [...cellsForCleaning, ...cellGroup];
+        });
+
+        return [cellsForCleaning, cellsWithErrors];
+    }
+
+    /**
+     *
+     * @param {Node[]} cellsForCleaning
+     * @param {typeof Board.vectors} vectors
+     */
+    cleanUpNonErrorCells(cellsForCleaning, vectors) {
+        (new Set(cellsForCleaning)).forEach(cell => {
+            if (vectors.reduce(
+                (hasErrors, vector) => this.errors[vector][cell.dataset[vector]] | hasErrors,
+                false,
+            )) return;
+            // when no error found, clear error class
+            cell.classList.remove('error');
+        });
+    }
+
+    /**
+     *
+     * @param {NodeList} cells
+     */
+    markCellsAsError(cells) {
+        [...cells].forEach((cell) => cell.classList.add('error'));
+    }
+
+    /**
+     *
+     * @param {NodeList} cells
+     * @returns
+     */
+    checkCellsHaveErrors(cells) {
+        const hasDuplicateValuesInGroup = calcCountsPerValue(cells).filter(n => n > 1).length > 0;
+        const hasAllCellsFilledInGroup = [...cells].filter(c => c.innerText.trim()).length === cells.length;
+        const hasSumMatchingGroupSum = calcSumOfCells(cells)  === this.groupSum;
+        return hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? !hasSumMatchingGroupSum : false);
+    }
+
+    markCompleted() {
+        this.ref.board.classList.add('completed');
+        this.lock();
+        confetti({
+            particleCount: 100,
+            spread: 70,
+            origin: { y: 0.6 },
+        });
+        document.querySelector('#loader_btn').focus();
+    }
+
     lock() {
-        this.ref.cells.forEach(c => c.hasAttribute('contenteditable') ? c.setAttribute('contenteditable',false) : null);
+        this.ref.cells.forEach(
+            c => c.hasAttribute('contenteditable')
+                ? c.setAttribute('contenteditable', false)
+                : null
+        );
     };
 
     unlock() {
-        this.ref.cells.forEach(c => c.classList.contains('fixed') ? null : c.setAttribute('contenteditable',true));
+        this.ref.cells.forEach(
+            c => c.classList.contains('fixed')
+                ? null
+                : c.setAttribute('contenteditable', true)
+        );
     };
 
     // prevents the passing of unsafe options
@@ -296,14 +357,18 @@ class Board {
         return Math.pow(Math.floor(Math.sqrt(this.x)),2) === this.x;
     };
 
-    get hash() {
-        return [
-            0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
-            ...('abcdefghijklmnopqrstuvwxyz').split(''),
-            ...('~!@#$%^&*()<>?[]{}\\/').split('')
-        ];
-    };
+    // get hash() {
+    //     return [
+    //         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0,
+    //         ...('abcdefghijklmnopqrstuvwxyz').split(''),
+    //         ...('~!@#$%^&*()<>?[]{}\\/').split('')
+    //     ];
+    // };
 
+    /**
+     *
+     * @returns {string}
+     */
     getSignature() {
         const cells = this.ref.board.querySelectorAll('.cell');
         const givens = [];
@@ -321,7 +386,7 @@ class Board {
      *
      * @param {string} param
      * @param {object} options
-     * @returns
+     * @returns {Board}
      */
     static fromSearchQueryParam(param, options = {}) {
         if (!param) return null;
@@ -334,6 +399,7 @@ class Board {
     /**
      *
      * @param {string} signature
+     * @returns {Board}
      */
     static fromSignature(encryptedSignature, options = {}) {
         const [size, pattern] = Board.parseSignature(encryptedSignature);
@@ -344,7 +410,7 @@ class Board {
     /**
      *
      * @param {string} encryptedSignature
-     * @returns
+     * @returns {[?string, ?object]}
      */
     static parseSignature(encryptedSignature) {
         const signature = atob(encryptedSignature), n = {};
@@ -361,7 +427,7 @@ class Board {
      *
      * @param {number} r
      * @param {object} options
-     * @returns
+     * @returns {Board}
      */
     static fromRoot(r, options) {
         const z = Math.pow(r, 2);
@@ -369,6 +435,11 @@ class Board {
     };
 }
 
+/**
+ *
+ * @param {number} id
+ * @returns {HTMLDivElement}
+ */
 function createCell(id) {
     const c = document.createElement('div');
     c.className = 'cell';
@@ -376,6 +447,14 @@ function createCell(id) {
     return c;
 }
 
+/**
+ *
+ * @param {Node} cell
+ * @param {boolean} isPerfectSquare
+ * @param {number} max
+ * @param {number} difficulty
+ * @returns
+ */
 function processCellForPossibleFixedValue(cell, isPerfectSquare, max, difficulty = 3) {
     const nfactor = 10, ofactor = 3;
     if (difficulty / 3 >= max) return;
@@ -385,6 +464,13 @@ function processCellForPossibleFixedValue(cell, isPerfectSquare, max, difficulty
     generateAndCheckValue(cell, isPerfectSquare, max);
 }
 
+/**
+ *
+ * @param {Node} cell
+ * @param {boolean} isPerfectSquare
+ * @param {number} max
+ * @returns
+ */
 function generateAndCheckValue(cell, isPerfectSquare, max) {
 
     const tolerance = 10;
@@ -433,23 +519,43 @@ function generateAndCheckValue(cell, isPerfectSquare, max) {
     // console.log('generate value', n, cell.dataset.row, cell.dataset.col, cell.dataset.sec);
 }
 
+/**
+ *
+ * @param {string} type
+ * @param {number} index
+ * @returns
+ */
 function getCellGroupDataArray(type, index) {
     const group = document.querySelectorAll(`.cell[data-${type}='${index}']`);
     return [...group].map(c => c.innerText.trim());
 }
 
+/**
+ *
+ * @param {number} max
+ * @returns
+ */
 function generateRandomCellValue(max) {
     let n = 0;
     while (n === 0) n = Math.floor(Math.random() * max);
     return n;
 }
 
+/**
+ *
+ * @param {Node} cell
+ * @param {string} val
+ */
 function setCellToFixedValue(cell, val) {
     cell.removeAttribute('contenteditable');
     cell.classList.add('fixed');
     cell.innerText = val;
 }
 
+/**
+ *
+ * @param {Node} elem
+ */
 function selectText(elem) {
     if (document.body.createTextRange) {
         const range = document.body.createTextRange();
@@ -508,6 +614,23 @@ class Matrix {
     remove(x, y) {
         if (this.has(x,y)) this._data[x][y] = null;
     };
+
+    getListX(x) {
+        if (x in this._data) {
+            return this._data[x];
+        }
+        return {};
+    }
+
+    getListY(y) {
+        const o = {};
+        for (let x in this._data) {
+            if (this.has(x, y)) {
+                o[y] = this.get(x, y);
+            }
+        }
+        return o;
+    }
 
     all() {
         return this._data;
