@@ -27,6 +27,14 @@ class Board {
         difficulty: 3,
     };
 
+    static __difficulties = [
+        (27/81),
+        (15/81),
+        (12/81),
+        (9/81),
+        (6/81),
+    ];
+
     constructor(z = 9, options = {}) {
         this.setDimensions(z, z);
         const r = Math.sqrt(z);
@@ -75,12 +83,12 @@ class Board {
         if (!this.ref.board) throw new Error(`Element with selector "${selector}" was not found.`);
 
         // remove any prior instances of boards for garbage collection
-        if (this.ref.board?.instance) {
-            this.ref.board?.instance.destroy();
+        if (this.ref.board?._instance) {
+            this.ref.board?._instance.destroy();
         }
 
         // assocate element with current board
-        this.ref.board.instance = this;
+        this.ref.board._instance = this;
 
         // apply option settings
         if (this.showErrors) {
@@ -157,6 +165,10 @@ class Board {
     }
 
     generateGivens() {
+        this.generateGivensV3();
+    }
+
+    generateGivensV1() {
         const flag = this.isPerfectSquare();
         const signature = this.options.signature;
 
@@ -175,6 +187,236 @@ class Board {
         }
     };
 
+    generateGivensV2() {
+        // calculate bounds (use this.x)
+        const bounds = Math.pow(this.x, 2);
+        console.log('[xs]', 'bounds', bounds);
+        // calculate num givens per difficulty(use this.options.difficulty)
+        const numGivens = calcNumGivensPerDifficulty(this.options.difficulty ?? 0);
+        console.log('[xs]', 'numGivens', numGivens);
+        // start loop, while num givens is not fulfilled. keep track of givens used
+        const coordinates = new Matrix();
+        console.log('[xs]', 'coordinates', coordinates);
+        for (let n = numGivens; n > 0; --n) {
+            // ^-- let numGivens = x, numGivens-- on each loop.
+            // ^-- also track coordinates: new Matrix()
+            let c = new Coordinates();
+            while (!c.isSet()) {
+                // loop to generate random coordinates
+                let [x, y] = generateRandomCoordinates(this.x);
+                console.log('[xs]', 'gen coordinates', x, y);
+                // check coordinates not yet in use
+                if (coordinates.has(x, y)) continue;
+                c.set(x,y);
+            }
+
+            let v = 0;
+            // ^-- while let v = 0
+            while (v === 0) {
+                // generate random given
+                let given = generateRandomCellValue(this.x);
+                console.log('[xs]', 'gen given', given, 'from len', this.x);
+                // check cell vectors (at coordinates) for possible errors
+                let hasConflicts = this.checkCellVectorsForDuplicates(given, c.x, c.y);
+                console.log('[xs]', 'has Vector Conflicts?', hasConflicts);
+                // if passes, set v = given to break while loop.
+                if (! hasConflicts) {
+                    console.log('[xs]', 'no Conflicts - update cell');
+                    v = given;
+                    coordinates.addCoordinates(c, given);
+                    // then set cell value as fixed, and continue to next loop iteration
+                    let cell = this.getCellByCoordinates(c.x, c.y);
+                    setCellToFixedValue(cell, given);
+                    console.log(`-- ${n} -- [xs]`, 'set cell at', c.x, c.y, 'to value', v);
+                }
+                // if fail, discard value and set v = 0
+            }
+        }
+    }
+
+    async generateGivensV3() {
+        this.ref.board.classList.add('disabled');
+
+        const p = await new Promise(resolve => {
+            setTimeout(() => {
+                if (this.x <= 1) {
+                    return resolve(true);
+                }
+
+                let limit = 100, i = 0, isSolved = false;
+
+                // solve puzzle to determine valid numbers
+                while (i < limit && !isSolved) {
+                    this.clearBoard();
+                    let solved = this.solvePuzzle();
+                    const numFilled = this.ref.cells.filter(c => c.innerText.trim()).length;
+                    isSolved = numFilled === (this.x * this.y);
+                    console.log('----- solved?', solved, numFilled, isSolved);
+                    i++;
+                };
+
+                // calculate num givens per difficulty(use this.options.difficulty)
+                const numGivens = calcNumGivensPerDifficulty(this.options.difficulty ?? 0);
+                console.log('[xs]', 'numGivens', numGivens);
+
+                // return;
+
+                const xgivens = [
+                    new Coordinates(3, 0),
+                    new Coordinates(5, 0),
+                    new Coordinates(1, 1),
+                    new Coordinates(7, 1),
+                    new Coordinates(4, 1),
+                    new Coordinates(2, 2),
+                    new Coordinates(6, 2),
+                    new Coordinates(0, 3),
+                    new Coordinates(3, 3),
+                    new Coordinates(5, 3),
+                    new Coordinates(8, 3),
+                    new Coordinates(1, 4),
+                    new Coordinates(7, 4),
+                    new Coordinates(0, 5),
+                    new Coordinates(3, 5),
+                    new Coordinates(5, 5),
+                    new Coordinates(8, 5),
+                    new Coordinates(2, 6),
+                    new Coordinates(6, 6),
+                    new Coordinates(1, 7),
+                    new Coordinates(4, 7),
+                    new Coordinates(7, 7),
+                    new Coordinates(3, 8),
+                    new Coordinates(5, 8),
+                ];
+
+                // determine number of fixed cells by difficulty level
+                const d = this.options.difficulty;
+                const bounds = Math.pow(this.x, 2);
+                const count = Board.__difficulties[(d / 3)];
+                const x = Math.floor(bounds * count);
+                const amount = (new Range(x - Math.floor(this.r), x)).random();
+                console.log('generate amount of givens',amount, x, d, Math.floor(this.r))
+
+                // define coordinates for fixed cells
+                const givens = [];
+                const map = new Matrix();
+                for (let j = 0; j < amount; ++j) {
+                    let c_limit = 0, c = new Coordinates();
+                    while (!c.isSet() && c_limit < 25) {
+                        let [x, y] = generateRandomCoordinates(this.x);
+                        console.log('gen coords', x, y, map.has(x, y));
+                        // todo: check cell at coordinates has value??
+                        if (!map.has(x, y)) {
+                            c.set(x, y);
+                            givens.push(c);
+                            map.add(x, y, true);
+                            break;
+                        }
+                        c_limit++;
+                    }
+                }
+
+                // assign fixed status to cells by specified coordinates
+                for (let c of givens) {
+                    this.ref.matrix.get(c.x, c.y)?.classList?.add('fixed');
+                }
+
+                // clear non-fixed cells
+                this.ref.cells.forEach(c => {
+                    if (!c.classList.contains('fixed')) {
+                        c.innerText = '';
+                    }
+                });
+
+                resolve(true);
+            },200);
+        }).then(() => {
+            this.ref.board.classList.remove('disabled');
+        })
+
+        // setTimeout(() => {
+
+
+        //     this.ref.board.classList.remove('disabled');
+        // }, 1000);
+
+
+
+        // loop through to determine which cells to keep;
+    }
+
+    solvePuzzle() {
+        // build list of possible values
+        const numbers = [];
+        for (let i = 0; i < this.x; ++i) { numbers.push(i + 1); }
+        // return;
+
+        for (let row = 0; row < this.y; ++row) {
+            let possibleValues = numbers.slice().sort(() => Math.random() - .5);
+            let col_limit = 0;
+
+            for (let col = 0; col < this.x; ++col) {
+                let limit = 0;
+                let cell = this.getCellByCoordinates(row, col);
+                let hasConflicts = true;
+                let chosenValue = null;
+
+                while (hasConflicts && possibleValues.length && limit < this.x + 5) {
+                    chosenValue = possibleValues.shift();
+                    // console.log('[xs]', 'gen given', chosenValue, 'for', `(${row},${col})`);
+                    hasConflicts = this.checkCellVectorsForDuplicates(chosenValue, row, col);
+                    // console.log('[xs]', 'has Vector Conflicts?', hasConflicts);
+                    possibleValues.push(chosenValue);
+                    limit++;
+                }
+
+                // console.log('[xs]', 'remaining numbers', possibleValues.join('/'), 'on', `(${row},${col})`);
+
+                if (!hasConflicts && chosenValue) {
+                    // console.log('[xs]', 'no Conflicts - update cell');
+                    cell.innerText = chosenValue;
+                    // console.log(`-- (${row},${col}) -- [xs]`, 'set cell', 'to value', chosenValue);
+                }
+                else if (col_limit < 15) {
+                    // console.log('##### [xs]', 'SOMETHING WENT WRONG', limit, chosenValue, possibleValues.join('/'), `(${row},${col})`);
+                    possibleValues = numbers.slice().sort(() => Math.random() - .5);
+                    col = 0;
+                    col_limit++;
+                }
+            }
+        }
+
+        return `(${this.x - 1},${this.y - 1})`;
+    }
+
+    getCellByCoordinates(x, y = null) {
+        if (x instanceof Coordinates) {
+            const c = x;
+            y = c.y;
+            x = c.x;
+        }
+        const cell = this.ref.matrix?.get(x, y) ?? null;
+        if (!cell) throw new Error(`Cell reference at (${x},${y}) cannot be found.`);
+        return cell;
+    }
+
+    checkCellVectorsForDuplicates(val, x, y) {
+        const cell = this.getCellByCoordinates(x, y);
+        const vectors = Board.vectors.slice();
+        if (!this.isPerfectSquare()) vectors.pop();
+
+        let hasDuplicates = false;
+        for (let v of vectors) {
+            const index = cell.dataset[v], numCounts = {}, list = getCellGroupDataArray(v, index);
+            list.push(val);
+
+            const filteredList = list.filter(x => x * 1);
+            filteredList.forEach(v => (numCounts[v] = (numCounts[v] || 0) + 1));
+            hasDuplicates |= Object.values(numCounts).filter(x => x > 1).length > 0;
+        }
+
+        return hasDuplicates;
+    }
+
     resize() {
         // resize and reposition board depending on board size and viewport size
         // always keeps it within viewport
@@ -192,6 +434,10 @@ class Board {
                 }, i)
             }
         }, 500);
+    }
+
+    clearBoard() {
+        this.ref.cells.forEach(c => c.innerText = '');
     }
 
     destroy() {
@@ -220,7 +466,7 @@ class Board {
         const [cellsForCleaning, cellsWithErrors] = this.checkCellErrorsByVector(cell, vectors);
 
         // loop through cells to try to clear them
-        this.cleanUpNonErrorCells(cellsForCleaning, vectors);
+        this.cleanUpNonErrorCells(cellsForCleaning, vectors, this.errors);
 
         // mark complete if board is successfully filled with no errors
         if (this.isCompleted()) {
@@ -265,10 +511,10 @@ class Board {
      * @param {Node[]} cellsForCleaning
      * @param {typeof Board.vectors} vectors
      */
-    cleanUpNonErrorCells(cellsForCleaning, vectors) {
+    cleanUpNonErrorCells(cellsForCleaning, vectors, errorMap) {
         (new Set(cellsForCleaning)).forEach(cell => {
             if (vectors.reduce(
-                (hasErrors, vector) => this.errors[vector][cell.dataset[vector]] | hasErrors,
+                (hasErrors, vector) => errorMap[vector][cell.dataset[vector]] | hasErrors,
                 false,
             )) return;
             // when no error found, clear error class
@@ -290,10 +536,14 @@ class Board {
      * @returns
      */
     checkCellsHaveErrors(cells) {
-        const hasDuplicateValuesInGroup = calcCountsPerValue(cells).filter(n => n > 1).length > 0;
+        const hasDuplicateValuesInGroup = this.checkCellsHaveDuplicates(cells);
         const hasAllCellsFilledInGroup = [...cells].filter(c => c.innerText.trim()).length === cells.length;
         const hasSumMatchingGroupSum = calcSumOfCells(cells)  === this.groupSum;
         return hasDuplicateValuesInGroup || (hasAllCellsFilledInGroup ? !hasSumMatchingGroupSum : false);
+    }
+
+    checkCellsHaveDuplicates(cells) {
+        return calcCountsPerValue(cells).filter(n => n > 1).length > 0;
     }
 
     markCompleted() {
@@ -537,7 +787,7 @@ function getCellGroupDataArray(type, index) {
  */
 function generateRandomCellValue(max) {
     let n = 0;
-    while (n === 0) n = Math.floor(Math.random() * max);
+    while (n === 0) n = Math.round(Math.random() * max);
     return n;
 }
 
@@ -592,11 +842,22 @@ function isOddSector(n, base) {
     ) % 2;
 }
 
+function calcNumGivensPerDifficulty(difficulty) {
+    const x = difficulty / 3 + 1;
+    const mod_factor = Math.floor(Math.random() * 6 - x) > 0;
+    const mod = Math.round(Math.random() * (3 + (3 * mod_factor)));
+    return ((-3 * Math.pow(x - 3, 2) + 27) / x) + (Math.round(Math.random() * (6 - x)) > 0) * mod;
+}
+
+function generateRandomCoordinates(max) {
+    return [Math.floor(Math.random() * max), Math.floor(Math.random() * max)];
+}
+
 class Matrix {
     _data = {};
 
     has(x, y) {
-        return (x in this._data && y in x in this._data[x]);
+        return (x in this._data && y in this._data[x]);
     }
 
     add(x, y, value) {
@@ -605,6 +866,12 @@ class Matrix {
         }
         this._data[x][y] = value;
     };
+
+    addCoordinates(coordinates, value) {
+        if (!(coordinates instanceof Coordinates)) throw new TypeError(`Expected instance of Coordinates. Instance of ${coordinates.constructor.name} given.`);
+        if (!coordinates.isSet()) throw new Error('Coordinates object has not yet been set.');
+        this.add(coordinates.x, coordinates.y, value);
+    }
 
     get(x, y) {
         if (this.has(x,y)) return this._data[x][y];
@@ -642,5 +909,83 @@ class Matrix {
                 yield this._data[x][y];
             }
         }
+    }
+}
+
+class Coordinates {
+    x = null;
+    y = null;
+
+    constructor(x = null, y = null) {
+        if (x !== null && y !== null)
+            this.set(x, y);
+    }
+
+    set(x, y) {
+        this.x = x;
+        this.y = y;
+    }
+
+    isSet() {
+        return this.x !== null && this.y !== null;
+    }
+}
+
+class Cell {
+    row = 0;
+    col = 0;
+    sec = 0;
+    index = 0;
+    board = null;
+    node = null;
+
+    constructor(i, x, y, group, board) {
+        this.index = i;
+        this.row = x;
+        this.col = y;
+        this.sec = group;
+        this.board = board;
+        this.node = createCell(i);
+        this.node._instance = this;
+
+        this.node.setAttribute('data-index', index);
+        this.node.setAttribute('data-row', x);
+        this.node.setAttribute('data-col', y);
+        this.node.setAttribute('data-sec', group);
+        this.node.setAttribute('contenteditable', true);
+    }
+
+    setFixed(value) {
+        this.node.removeAttribute('contenteditable');
+        this.node.innetText = value;
+    }
+
+    clearFixed() {
+        this.node.setAttribute('contenteditable', true);
+        this.node.innetText = '';
+    }
+
+    setStatus(status) {
+        this.node.classList.add(status);
+    }
+
+    clearStatus(status) {
+        this.node.classList.remove(status);
+    }
+
+}
+
+class Range {
+    constructor(min, max, inclusive = false) {
+        this.min = min;
+        this.max = max;
+        this._inclusive = inclusive
+    }
+
+    random() {
+        const v = Math.random() * this.max;
+        return this._inclusive
+            ? Math.round(v) + this.min
+            : Math.floor(v) + this.min;
     }
 }
