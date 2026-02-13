@@ -12,7 +12,7 @@ This project has always been a fun way for me to test my skills and push the bar
 creative way. It also helps me learn more through practical application.
 
 
-### v1
+### Version 1: A Game for Mom
 I initially built v1 using vanilla JS for fun, and so that my mom could play sudoku online. 
 
 The goal was to build a fully functional Sudoku board that allowed a player to enter numbers into cells and have the 
@@ -26,7 +26,7 @@ board would be calculated accordingly.
 The cells would automatically validate, though this could be toggled off by the user.
 
 
-### v2
+### Version 2: A New Challenge
 
 Years later, I came back to build v2 using more modern JS. The goal of this version was two-fold:
 
