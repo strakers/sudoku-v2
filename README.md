@@ -1,8 +1,6 @@
 # SUDOKU-JS
 
 A sudoku project I built using JavaScript and math as a challenge to myself.
-This project has always been a fun way for me to test my skills and push the bar in a
-creative way. It also helps me learn more through practical application.
 
 ## Links
 
@@ -10,6 +8,9 @@ creative way. It also helps me learn more through practical application.
 - [Play Version 2](http://thenerdinme.com/games/sudoku/) 
 
 ## About
+This project has always been a fun way for me to test my skills and push the bar in a
+creative way. It also helps me learn more through practical application.
+
 
 ### v1
 I initially built v1 using vanilla JS for fun, and so that my mom could play sudoku online. 
