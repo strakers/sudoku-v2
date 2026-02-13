@@ -35,8 +35,13 @@
     padding: 1rem;
     align-content: center;
     place-content: center;
+    opacity: 1;
+    filter: sepia(0);
     transform: perspective(500px) scale(1, 1) rotateX(15deg);
-    transition: transform 700ms ease;
+    transition:
+        transform 700ms ease,
+        opacity 350ms ease,
+        filter 500ms ease;
     anchor-name: --gameboard;
 }
 
@@ -89,6 +94,12 @@
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+}
+
+.grid.disabled {
+    opacity: .5;
+    filter: blur(4px);
+    pointer-events: none;
 }
 
 .modal {
